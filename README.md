@@ -1,15 +1,20 @@
 # rsproule's Workspace
 
-This is your persistent Claude workspace. Any code, files, or projects created here will be saved and available for future sessions.
+This is your persistent Claude workspace. Code and projects here are saved across sessions.
 
 ## Directory Structure
 
-- `tools/` - Custom scripts and utilities
-- `projects/` - Your coding projects
-- `notes/` - Documentation and notes
+- `public/` - **Vite + React super app** (auto-deployed)
+  - Add sub-apps as routes in `public/src/apps/`
+  - Home page shows manifest of all apps
+- `notes/` - Documentation and notes (not deployed)
+- `tools/` - Scripts and utilities (not deployed)
 - `.logs/` - Execution logs (auto-generated)
-- `.claude/` - Claude configuration and state
+- `.claude/` - Claude configuration
 
-## Getting Started
+## Adding a New App
 
-Ask Claude to help you with any coding task. All changes will be automatically committed to this repository.
+1. Create folder: `public/src/apps/myapp/`
+2. Add components: `public/src/apps/myapp/index.tsx`
+3. Add route in `public/src/App.tsx`
+4. Run `cd public && npm run dev` to test locally
