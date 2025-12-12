@@ -1,11 +1,10 @@
 import { Routes, Route, Link } from 'react-router-dom'
 
 // Import your apps here
-// import MyApp from './apps/myapp'
+import Tekkers from './apps/tekkers'
 
 const apps = [
-  // Add your apps to this manifest
-  // { name: 'My App', path: '/apps/myapp', description: 'Description here' },
+  { name: 'Tekkers', path: '/apps/tekkers', description: '3D cube juggling game - keep the cube bouncing!' },
 ]
 
 function Home() {
@@ -32,8 +31,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      {/* Add routes for your apps here */}
-      {/* <Route path="/apps/myapp/*" element={<MyApp />} /> */}
+      <Route path="/apps/tekkers/*" element={<Tekkers />} />
     </Routes>
   )
 }
