@@ -27,7 +27,7 @@ export default function Tekkers() {
       scene.background = new THREE.Color(0x1a1a2e)
 
       const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000)
-      camera.position.set(0, 8, 15)
+      camera.position.set(0, 12, 28)
       camera.lookAt(0, 0, 0)
 
       const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -100,6 +100,76 @@ export default function Tekkers() {
       gridHelper.position.y = -5.99
       scene.add(gridHelper)
 
+      // Glass bounding box
+      const boxWidth = 24  // -12 to 12
+      const boxDepth = 16  // -8 to 8
+      const boxHeight = 20 // floor to ceiling
+      const boxBottom = -6
+      const glassMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x88ccff,
+        transparent: true,
+        opacity: 0.15,
+        roughness: 0.05,
+        metalness: 0.1,
+        reflectivity: 0.9,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        side: THREE.DoubleSide,
+        envMapIntensity: 1.0
+      })
+
+      // Create glass walls
+      // Left wall
+      const leftWall = new THREE.Mesh(
+        new THREE.PlaneGeometry(boxDepth, boxHeight),
+        glassMaterial
+      )
+      leftWall.position.set(-boxWidth / 2, boxBottom + boxHeight / 2, 0)
+      leftWall.rotation.y = Math.PI / 2
+      scene.add(leftWall)
+
+      // Right wall
+      const rightWall = new THREE.Mesh(
+        new THREE.PlaneGeometry(boxDepth, boxHeight),
+        glassMaterial
+      )
+      rightWall.position.set(boxWidth / 2, boxBottom + boxHeight / 2, 0)
+      rightWall.rotation.y = -Math.PI / 2
+      scene.add(rightWall)
+
+      // Front wall
+      const frontWall = new THREE.Mesh(
+        new THREE.PlaneGeometry(boxWidth, boxHeight),
+        glassMaterial
+      )
+      frontWall.position.set(0, boxBottom + boxHeight / 2, boxDepth / 2)
+      frontWall.rotation.y = Math.PI
+      scene.add(frontWall)
+
+      // Back wall
+      const backWall = new THREE.Mesh(
+        new THREE.PlaneGeometry(boxWidth, boxHeight),
+        glassMaterial
+      )
+      backWall.position.set(0, boxBottom + boxHeight / 2, -boxDepth / 2)
+      scene.add(backWall)
+
+      // Top (ceiling)
+      const ceiling = new THREE.Mesh(
+        new THREE.PlaneGeometry(boxWidth, boxDepth),
+        glassMaterial
+      )
+      ceiling.position.set(0, boxBottom + boxHeight, 0)
+      ceiling.rotation.x = Math.PI / 2
+      scene.add(ceiling)
+
+      // Glass box edges for visibility
+      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.5 })
+      const boxEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth))
+      const boxWireframe = new THREE.LineSegments(boxEdges, edgeMaterial)
+      boxWireframe.position.set(0, boxBottom + boxHeight / 2, 0)
+      scene.add(boxWireframe)
+
       // Game state
       let score = 0
       let highScore = parseInt(localStorage.getItem('tekkers-highscore') || '0')
@@ -108,8 +178,8 @@ export default function Tekkers() {
 
       // Physics
       const gravity = -20
-      const bounceFactor = 0.85
-      const spinFactor = 5
+      const bounceFactor = 0.5
+      const spinFactor = 3
 
       let velocity = { x: 0, y: 0, z: 0 }
       let angularVelocity = { x: 0, y: 0, z: 0 }
@@ -282,7 +352,7 @@ export default function Tekkers() {
             Math.abs(cube.position.z - paddle.position.z) < 2.5
           ) {
             // Bounce!
-            velocity.y = Math.abs(velocity.y) * bounceFactor + 8
+            velocity.y = Math.abs(velocity.y) * bounceFactor + 5
 
             // Add horizontal velocity based on where it hit the paddle (X and Z)
             const hitOffsetX = (cube.position.x - paddle.position.x) / 2
