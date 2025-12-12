@@ -216,8 +216,7 @@
         const GRAVITY = 300;
         const FRICTION = 0.99;
         const BOUNCE_DAMPING = 0.75;
-        const MOUSE_REPULSION_FORCE = 8000;
-        const MOUSE_REPULSION_RADIUS = 150;
+        const MOUSE_RADIUS = 30; // Mouse cursor collision radius
         const CUBE_SIZE = 200;
         const CUBE_HALF = CUBE_SIZE / 2;
 
@@ -240,6 +239,10 @@
         let mouse = {
             x: 0,
             y: 0,
+            prevX: 0,
+            prevY: 0,
+            vx: 0,
+            vy: 0,
             active: false
         };
 
@@ -273,39 +276,110 @@
             }
         });
 
+        // Find closest point on cube to a given point
+        function closestPointOnCube(px, py, cubeX, cubeY, halfSize) {
+            const clampedX = Math.max(cubeX - halfSize, Math.min(cubeX + halfSize, px));
+            const clampedY = Math.max(cubeY - halfSize, Math.min(cubeY + halfSize, py));
+            return { x: clampedX, y: clampedY };
+        }
+
         function checkMouseCollision() {
             if (!mouse.active) return { colliding: false };
 
-            const dx = physics.x - mouse.x;
-            const dy = physics.y - mouse.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const minDist = CUBE_HALF + 30; // 30 is mouse cursor radius
+            // Find closest point on cube to mouse center
+            const closest = closestPointOnCube(mouse.x, mouse.y, physics.x, physics.y, CUBE_HALF);
 
-            if (dist < minDist && dist > 0) {
+            // Calculate distance from mouse center to closest point on cube
+            const dx = mouse.x - closest.x;
+            const dy = mouse.y - closest.y;
+            const distSq = dx * dx + dy * dy;
+
+            // Check if mouse circle intersects with cube
+            if (distSq < MOUSE_RADIUS * MOUSE_RADIUS) {
+                const dist = Math.sqrt(distSq);
+
+                // Handle case where mouse is inside the cube
+                if (dist < 0.001) {
+                    // Mouse is exactly at or inside the cube - push based on relative position
+                    const relX = physics.x - mouse.x;
+                    const relY = physics.y - mouse.y;
+                    const relDist = Math.sqrt(relX * relX + relY * relY);
+                    if (relDist < 0.001) {
+                        // Mouse at exact center - push in random direction
+                        return {
+                            colliding: true,
+                            nx: Math.random() - 0.5,
+                            ny: Math.random() - 0.5,
+                            overlap: MOUSE_RADIUS + CUBE_HALF,
+                            closestX: closest.x,
+                            closestY: closest.y
+                        };
+                    }
+                    return {
+                        colliding: true,
+                        nx: relX / relDist,
+                        ny: relY / relDist,
+                        overlap: MOUSE_RADIUS + CUBE_HALF - relDist,
+                        closestX: closest.x,
+                        closestY: closest.y
+                    };
+                }
+
+                // Normal collision - push cube away from mouse
+                // Normal points from mouse toward cube
+                const nx = -dx / dist;
+                const ny = -dy / dist;
+                const overlap = MOUSE_RADIUS - dist;
+
                 return {
                     colliding: true,
-                    nx: dx / dist,
-                    ny: dy / dist,
-                    overlap: minDist - dist
+                    nx: nx,
+                    ny: ny,
+                    overlap: overlap,
+                    closestX: closest.x,
+                    closestY: closest.y
                 };
             }
 
             return { colliding: false };
         }
 
-        function applyMouseRepulsion() {
-            if (!mouse.active) return;
+        function resolveMouseCollision(collision) {
+            // Separate the cube from the mouse
+            physics.x += collision.nx * collision.overlap * 1.01;
+            physics.y += collision.ny * collision.overlap * 1.01;
 
-            const dx = physics.x - mouse.x;
-            const dy = physics.y - mouse.y;
-            const distSq = dx * dx + dy * dy;
-            const dist = Math.sqrt(distSq);
+            // Calculate relative velocity (cube velocity minus mouse velocity)
+            const relVx = physics.vx - mouse.vx;
+            const relVy = physics.vy - mouse.vy;
 
-            if (dist < MOUSE_REPULSION_RADIUS && dist > 0) {
-                const force = MOUSE_REPULSION_FORCE / (distSq + 100);
-                physics.ax += (dx / dist) * force;
-                physics.ay += (dy / dist) * force;
+            // Calculate relative velocity along collision normal
+            const relVelAlongNormal = relVx * collision.nx + relVy * collision.ny;
+
+            // Only resolve if objects are moving toward each other
+            if (relVelAlongNormal < 0) {
+                // Calculate impulse scalar with restitution (bounciness)
+                const restitution = BOUNCE_DAMPING;
+                const impulse = -(1 + restitution) * relVelAlongNormal;
+
+                // Apply impulse to cube velocity
+                physics.vx += impulse * collision.nx;
+                physics.vy += impulse * collision.ny;
+
+                // Transfer some mouse velocity to cube (gives it a "push" feel)
+                physics.vx += mouse.vx * 0.3;
+                physics.vy += mouse.vy * 0.3;
             }
+
+            // Add spin based on collision point relative to cube center
+            const collisionOffsetX = collision.closestX - physics.x;
+            const collisionOffsetY = collision.closestY - physics.y;
+
+            // Cross product for angular impulse
+            const torque = (collisionOffsetX * collision.ny - collisionOffsetY * collision.nx) * 0.02;
+            physics.angularVelZ += torque;
+            physics.angularVelX += collisionOffsetY * 0.01;
+            physics.angularVelY -= collisionOffsetX * 0.01;
         }
 
         function checkWallCollision() {
@@ -348,41 +422,20 @@
             const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
             lastTime = currentTime;
 
-            // Reset acceleration (gravity is constant)
-            physics.ax = 0;
-            physics.ay = GRAVITY;
-
-            // Apply mouse repulsion force
-            applyMouseRepulsion();
-
-            // Check mouse collision
-            const mouseCollision = checkMouseCollision();
-            if (mouseCollision.colliding) {
-                mouseCursor.classList.add('colliding');
-
-                // Push cube away from mouse
-                physics.x += mouseCollision.nx * mouseCollision.overlap;
-                physics.y += mouseCollision.ny * mouseCollision.overlap;
-
-                // Reflect velocity
-                const dotProduct = physics.vx * mouseCollision.nx + physics.vy * mouseCollision.ny;
-                if (dotProduct < 0) {
-                    physics.vx -= 2 * dotProduct * mouseCollision.nx;
-                    physics.vy -= 2 * dotProduct * mouseCollision.ny;
-                    physics.vx *= BOUNCE_DAMPING;
-                    physics.vy *= BOUNCE_DAMPING;
-                }
-
-                // Add spin on collision
-                physics.angularVelX += (Math.random() - 0.5) * 5;
-                physics.angularVelY += (Math.random() - 0.5) * 5;
-            } else {
-                mouseCursor.classList.remove('colliding');
+            // Update mouse velocity (smoothed)
+            if (dt > 0) {
+                const rawVx = (mouse.x - mouse.prevX) / dt;
+                const rawVy = (mouse.y - mouse.prevY) / dt;
+                // Smooth mouse velocity with exponential moving average
+                mouse.vx = mouse.vx * 0.7 + rawVx * 0.3;
+                mouse.vy = mouse.vy * 0.7 + rawVy * 0.3;
+                mouse.prevX = mouse.x;
+                mouse.prevY = mouse.y;
             }
 
-            // Update velocity with acceleration
-            physics.vx += physics.ax * dt;
-            physics.vy += physics.ay * dt;
+            // Apply gravity
+            physics.vx += 0; // No horizontal acceleration from gravity
+            physics.vy += GRAVITY * dt;
 
             // Apply friction
             physics.vx *= FRICTION;
@@ -392,7 +445,19 @@
             physics.x += physics.vx * dt;
             physics.y += physics.vy * dt;
 
-            // Check wall collisions
+            // Check wall collisions first
+            checkWallCollision();
+
+            // Check and resolve mouse collision
+            const mouseCollision = checkMouseCollision();
+            if (mouseCollision.colliding) {
+                mouseCursor.classList.add('colliding');
+                resolveMouseCollision(mouseCollision);
+            } else {
+                mouseCursor.classList.remove('colliding');
+            }
+
+            // Re-check walls after mouse collision resolution
             checkWallCollision();
 
             // Update rotation based on angular velocity
