@@ -196,22 +196,29 @@ export default function Tekkers() {
         updateUI()
       }
 
-      // Mouse tracking - X and Z on the horizontal plane
+      // Mouse tracking - X from mouse move, Z from mouse wheel
       let mouseX = 0
-      let mouseZ = 0
+      let targetZ = 0
       const handleMouseMove = (e: MouseEvent) => {
         mouseX = ((e.clientX / width) - 0.5) * 20
-        // Map vertical mouse position to Z-axis (forward/back)
-        // Top of screen = far (negative Z), bottom = near (positive Z)
-        mouseZ = ((e.clientY / height) - 0.5) * 12
       }
       window.addEventListener('mousemove', handleMouseMove)
 
-      // Touch support
+      // Mouse wheel for Z-axis (forward/backward)
+      const handleWheel = (e: WheelEvent) => {
+        e.preventDefault()
+        // Scroll down = move forward (positive Z), scroll up = move back (negative Z)
+        targetZ += e.deltaY * 0.01
+        // Clamp target Z position
+        targetZ = Math.max(-6, Math.min(6, targetZ))
+      }
+      window.addEventListener('wheel', handleWheel, { passive: false })
+
+      // Touch support - touch still uses Y position for Z-axis
       const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault()
         mouseX = ((e.touches[0].clientX / width) - 0.5) * 20
-        mouseZ = ((e.touches[0].clientY / height) - 0.5) * 12
+        targetZ = ((e.touches[0].clientY / height) - 0.5) * 12
       }
       window.addEventListener('touchmove', handleTouchMove, { passive: false })
 
@@ -245,7 +252,7 @@ export default function Tekkers() {
             <div style="font-size: 48px; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,136,0.5);">TEKKERS</div>
             <div style="font-size: 18px; margin-top: 10px; opacity: 0.8;">3D Cube Juggling</div>
             <div style="font-size: 24px; margin-top: 30px; animation: pulse 1.5s infinite;">Click to Start</div>
-            <div style="font-size: 14px; margin-top: 20px; opacity: 0.6;">Move mouse to control paddle (X and depth)</div>
+            <div style="font-size: 14px; margin-top: 20px; opacity: 0.6;">Mouse: left/right | Scroll wheel: forward/back</div>
             ${highScore > 0 ? `<div style="font-size: 16px; margin-top: 10px; color: #ffd700;">Best: ${highScore}</div>` : ''}
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
@@ -303,7 +310,7 @@ export default function Tekkers() {
 
         // Smooth paddle movement on 2D horizontal plane (X and Z)
         paddle.position.x += (mouseX - paddle.position.x) * 0.15
-        paddle.position.z += (mouseZ - paddle.position.z) * 0.15
+        paddle.position.z += (targetZ - paddle.position.z) * 0.1
 
         // Clamp paddle position
         paddle.position.x = Math.max(-10, Math.min(10, paddle.position.x))
@@ -426,6 +433,7 @@ export default function Tekkers() {
         cleanup: () => {
           cancelAnimationFrame(animationId)
           window.removeEventListener('mousemove', handleMouseMove)
+          window.removeEventListener('wheel', handleWheel)
           window.removeEventListener('touchmove', handleTouchMove)
           window.removeEventListener('click', handleClick)
           window.removeEventListener('touchstart', handleClick)
