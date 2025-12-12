@@ -51,8 +51,8 @@ export default function Tekkers() {
       pointLight.position.set(0, 10, 0)
       scene.add(pointLight)
 
-      // Paddle
-      const paddleGeometry = new THREE.BoxGeometry(4, 0.3, 2)
+      // Paddle - 2D surface that moves on XZ plane
+      const paddleGeometry = new THREE.BoxGeometry(4, 0.3, 4)
       const paddleMaterial = new THREE.MeshPhongMaterial({
         color: 0x00ff88,
         emissive: 0x004422,
@@ -126,10 +126,14 @@ export default function Tekkers() {
         updateUI()
       }
 
-      // Mouse tracking
+      // Mouse tracking - X and Z on the horizontal plane
       let mouseX = 0
+      let mouseZ = 0
       const handleMouseMove = (e: MouseEvent) => {
         mouseX = ((e.clientX / width) - 0.5) * 20
+        // Map vertical mouse position to Z-axis (forward/back)
+        // Top of screen = far (negative Z), bottom = near (positive Z)
+        mouseZ = ((e.clientY / height) - 0.5) * 12
       }
       window.addEventListener('mousemove', handleMouseMove)
 
@@ -137,6 +141,7 @@ export default function Tekkers() {
       const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault()
         mouseX = ((e.touches[0].clientX / width) - 0.5) * 20
+        mouseZ = ((e.touches[0].clientY / height) - 0.5) * 12
       }
       window.addEventListener('touchmove', handleTouchMove, { passive: false })
 
@@ -170,7 +175,7 @@ export default function Tekkers() {
             <div style="font-size: 48px; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,136,0.5);">TEKKERS</div>
             <div style="font-size: 18px; margin-top: 10px; opacity: 0.8;">3D Cube Juggling</div>
             <div style="font-size: 24px; margin-top: 30px; animation: pulse 1.5s infinite;">Click to Start</div>
-            <div style="font-size: 14px; margin-top: 20px; opacity: 0.6;">Move mouse to control paddle</div>
+            <div style="font-size: 14px; margin-top: 20px; opacity: 0.6;">Move mouse to control paddle (X and depth)</div>
             ${highScore > 0 ? `<div style="font-size: 16px; margin-top: 10px; color: #ffd700;">Best: ${highScore}</div>` : ''}
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
@@ -226,11 +231,13 @@ export default function Tekkers() {
         const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1)
         lastTime = currentTime
 
-        // Smooth paddle movement
+        // Smooth paddle movement on 2D horizontal plane (X and Z)
         paddle.position.x += (mouseX - paddle.position.x) * 0.15
+        paddle.position.z += (mouseZ - paddle.position.z) * 0.15
 
         // Clamp paddle position
         paddle.position.x = Math.max(-10, Math.min(10, paddle.position.x))
+        paddle.position.z = Math.max(-6, Math.min(6, paddle.position.z))
 
         if (gameStarted && !gameOver) {
           // Apply gravity
@@ -272,17 +279,19 @@ export default function Tekkers() {
             cubeBottom >= paddleTop - 1 &&
             velocity.y < 0 &&
             Math.abs(cube.position.x - paddle.position.x) < 2.5 &&
-            Math.abs(cube.position.z - paddle.position.z) < 1.5
+            Math.abs(cube.position.z - paddle.position.z) < 2.5
           ) {
             // Bounce!
             velocity.y = Math.abs(velocity.y) * bounceFactor + 8
 
-            // Add horizontal velocity based on where it hit the paddle
-            const hitOffset = (cube.position.x - paddle.position.x) / 2
-            velocity.x += hitOffset * 3
+            // Add horizontal velocity based on where it hit the paddle (X and Z)
+            const hitOffsetX = (cube.position.x - paddle.position.x) / 2
+            const hitOffsetZ = (cube.position.z - paddle.position.z) / 1
+            velocity.x += hitOffsetX * 3
+            velocity.z += hitOffsetZ * 3
 
-            // Add spin
-            angularVelocity.x = (Math.random() - 0.5) * spinFactor
+            // Add spin based on both velocity components
+            angularVelocity.x = velocity.z * 0.5 + (Math.random() - 0.5) * spinFactor
             angularVelocity.y = (Math.random() - 0.5) * spinFactor
             angularVelocity.z = velocity.x * 0.5
 
