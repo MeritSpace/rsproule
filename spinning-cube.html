@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spinning 3D Cube</title>
+    <title>Spinning 3D Cube with Physics</title>
     <style>
         * {
             margin: 0;
@@ -25,6 +25,7 @@
             width: 200px;
             height: 200px;
             perspective: 600px;
+            position: absolute;
         }
 
         .cube {
@@ -32,7 +33,6 @@
             height: 100%;
             position: relative;
             transform-style: preserve-3d;
-            animation: rotate 8s infinite linear;
         }
 
         .face {
@@ -87,34 +87,14 @@
             box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
         }
 
-        @keyframes rotate {
-            0% {
-                transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
-            }
-            100% {
-                transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg);
-            }
-        }
-
         .glow {
             position: absolute;
             width: 300px;
             height: 300px;
             background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
             border-radius: 50%;
-            animation: pulse 4s infinite ease-in-out;
             pointer-events: none;
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 0.5;
-            }
-            50% {
-                transform: scale(1.2);
-                opacity: 0.8;
-            }
+            transform: translate(-50px, -50px);
         }
 
         .particles {
@@ -153,13 +133,46 @@
                 opacity: 0;
             }
         }
+
+        .mouse-cursor {
+            position: fixed;
+            width: 60px;
+            height: 60px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease-out, border-color 0.2s;
+            z-index: 1000;
+        }
+
+        .mouse-cursor.colliding {
+            border-color: rgba(255, 107, 107, 1);
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            z-index: 1000;
+        }
+
+        .info span {
+            display: block;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="particles" id="particles"></div>
-    <div class="glow"></div>
-    <div class="scene">
-        <div class="cube">
+    <div class="mouse-cursor" id="mouseCursor"></div>
+    <div class="scene" id="scene">
+        <div class="glow" id="glow"></div>
+        <div class="cube" id="cube">
             <div class="face front">FRONT</div>
             <div class="face back">BACK</div>
             <div class="face right">RIGHT</div>
@@ -167,6 +180,11 @@
             <div class="face top">TOP</div>
             <div class="face bottom">BOTTOM</div>
         </div>
+    </div>
+    <div class="info">
+        <span>Velocity: <span id="velocityDisplay">0, 0</span></span>
+        <span>Position: <span id="positionDisplay">0, 0</span></span>
+        <span>Move mouse to interact with cube</span>
     </div>
 
     <script>
@@ -186,19 +204,230 @@
             particlesContainer.appendChild(particle);
         }
 
-        // Interactive mouse tracking (optional enhancement)
-        const cube = document.querySelector('.cube');
-        let isHovering = false;
-        let mouseX = 0;
-        let mouseY = 0;
+        // Physics Engine
+        const scene = document.getElementById('scene');
+        const cube = document.getElementById('cube');
+        const glow = document.getElementById('glow');
+        const mouseCursor = document.getElementById('mouseCursor');
+        const velocityDisplay = document.getElementById('velocityDisplay');
+        const positionDisplay = document.getElementById('positionDisplay');
 
+        // Physics constants
+        const GRAVITY = 300;
+        const FRICTION = 0.99;
+        const BOUNCE_DAMPING = 0.75;
+        const MOUSE_REPULSION_FORCE = 8000;
+        const MOUSE_REPULSION_RADIUS = 150;
+        const CUBE_SIZE = 200;
+        const CUBE_HALF = CUBE_SIZE / 2;
+
+        // Physics state
+        let physics = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            vx: 150,
+            vy: -200,
+            ax: 0,
+            ay: GRAVITY,
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            angularVelX: 2,
+            angularVelY: 3,
+            angularVelZ: 0.5
+        };
+
+        let mouse = {
+            x: 0,
+            y: 0,
+            active: false
+        };
+
+        let lastTime = performance.now();
+
+        // Mouse tracking
         document.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX / window.innerWidth - 0.5) * 30;
-            mouseY = (e.clientY / window.innerHeight - 0.5) * 30;
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.active = true;
+            mouseCursor.style.left = e.clientX + 'px';
+            mouseCursor.style.top = e.clientY + 'px';
         });
 
-        document.addEventListener('mouseenter', () => isHovering = true);
-        document.addEventListener('mouseleave', () => isHovering = false);
+        document.addEventListener('mouseleave', () => {
+            mouse.active = false;
+        });
+
+        document.addEventListener('mouseenter', () => {
+            mouse.active = true;
+        });
+
+        // Click to give the cube a push
+        document.addEventListener('click', (e) => {
+            const dx = physics.x - e.clientX;
+            const dy = physics.y - e.clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+                physics.vx += (dx / dist) * 500;
+                physics.vy += (dy / dist) * 500;
+            }
+        });
+
+        function checkMouseCollision() {
+            if (!mouse.active) return { colliding: false };
+
+            const dx = physics.x - mouse.x;
+            const dy = physics.y - mouse.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = CUBE_HALF + 30; // 30 is mouse cursor radius
+
+            if (dist < minDist && dist > 0) {
+                return {
+                    colliding: true,
+                    nx: dx / dist,
+                    ny: dy / dist,
+                    overlap: minDist - dist
+                };
+            }
+
+            return { colliding: false };
+        }
+
+        function applyMouseRepulsion() {
+            if (!mouse.active) return;
+
+            const dx = physics.x - mouse.x;
+            const dy = physics.y - mouse.y;
+            const distSq = dx * dx + dy * dy;
+            const dist = Math.sqrt(distSq);
+
+            if (dist < MOUSE_REPULSION_RADIUS && dist > 0) {
+                const force = MOUSE_REPULSION_FORCE / (distSq + 100);
+                physics.ax += (dx / dist) * force;
+                physics.ay += (dy / dist) * force;
+            }
+        }
+
+        function checkWallCollision() {
+            const margin = CUBE_HALF;
+            let collided = false;
+
+            // Left wall
+            if (physics.x - margin < 0) {
+                physics.x = margin;
+                physics.vx = Math.abs(physics.vx) * BOUNCE_DAMPING;
+                physics.angularVelY += physics.vy * 0.01;
+                collided = true;
+            }
+            // Right wall
+            if (physics.x + margin > window.innerWidth) {
+                physics.x = window.innerWidth - margin;
+                physics.vx = -Math.abs(physics.vx) * BOUNCE_DAMPING;
+                physics.angularVelY -= physics.vy * 0.01;
+                collided = true;
+            }
+            // Top wall
+            if (physics.y - margin < 0) {
+                physics.y = margin;
+                physics.vy = Math.abs(physics.vy) * BOUNCE_DAMPING;
+                physics.angularVelX -= physics.vx * 0.01;
+                collided = true;
+            }
+            // Bottom wall
+            if (physics.y + margin > window.innerHeight) {
+                physics.y = window.innerHeight - margin;
+                physics.vy = -Math.abs(physics.vy) * BOUNCE_DAMPING;
+                physics.angularVelX += physics.vx * 0.01;
+                collided = true;
+            }
+
+            return collided;
+        }
+
+        function update(currentTime) {
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
+            lastTime = currentTime;
+
+            // Reset acceleration (gravity is constant)
+            physics.ax = 0;
+            physics.ay = GRAVITY;
+
+            // Apply mouse repulsion force
+            applyMouseRepulsion();
+
+            // Check mouse collision
+            const mouseCollision = checkMouseCollision();
+            if (mouseCollision.colliding) {
+                mouseCursor.classList.add('colliding');
+
+                // Push cube away from mouse
+                physics.x += mouseCollision.nx * mouseCollision.overlap;
+                physics.y += mouseCollision.ny * mouseCollision.overlap;
+
+                // Reflect velocity
+                const dotProduct = physics.vx * mouseCollision.nx + physics.vy * mouseCollision.ny;
+                if (dotProduct < 0) {
+                    physics.vx -= 2 * dotProduct * mouseCollision.nx;
+                    physics.vy -= 2 * dotProduct * mouseCollision.ny;
+                    physics.vx *= BOUNCE_DAMPING;
+                    physics.vy *= BOUNCE_DAMPING;
+                }
+
+                // Add spin on collision
+                physics.angularVelX += (Math.random() - 0.5) * 5;
+                physics.angularVelY += (Math.random() - 0.5) * 5;
+            } else {
+                mouseCursor.classList.remove('colliding');
+            }
+
+            // Update velocity with acceleration
+            physics.vx += physics.ax * dt;
+            physics.vy += physics.ay * dt;
+
+            // Apply friction
+            physics.vx *= FRICTION;
+            physics.vy *= FRICTION;
+
+            // Update position
+            physics.x += physics.vx * dt;
+            physics.y += physics.vy * dt;
+
+            // Check wall collisions
+            checkWallCollision();
+
+            // Update rotation based on angular velocity
+            physics.rotationX += physics.angularVelX * dt * 60;
+            physics.rotationY += physics.angularVelY * dt * 60;
+            physics.rotationZ += physics.angularVelZ * dt * 60;
+
+            // Dampen angular velocity slowly
+            physics.angularVelX *= 0.998;
+            physics.angularVelY *= 0.998;
+            physics.angularVelZ *= 0.998;
+
+            // Apply transforms
+            scene.style.left = physics.x + 'px';
+            scene.style.top = physics.y + 'px';
+            scene.style.transform = `translate(-50%, -50%)`;
+
+            cube.style.transform = `rotateX(${physics.rotationX}deg) rotateY(${physics.rotationY}deg) rotateZ(${physics.rotationZ}deg)`;
+
+            // Update display
+            velocityDisplay.textContent = `${physics.vx.toFixed(0)}, ${physics.vy.toFixed(0)}`;
+            positionDisplay.textContent = `${physics.x.toFixed(0)}, ${physics.y.toFixed(0)}`;
+
+            requestAnimationFrame(update);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Keep cube within bounds after resize
+            physics.x = Math.max(CUBE_HALF, Math.min(window.innerWidth - CUBE_HALF, physics.x));
+            physics.y = Math.max(CUBE_HALF, Math.min(window.innerHeight - CUBE_HALF, physics.y));
+        });
+
+        // Start the physics loop
+        requestAnimationFrame(update);
     </script>
 </body>
 </html>
