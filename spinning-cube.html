@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spinning 3D Cube</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            perspective: 1000px;
+            overflow: hidden;
+        }
+
+        .scene {
+            width: 200px;
+            height: 200px;
+            perspective: 600px;
+        }
+
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotate 8s infinite linear;
+        }
+
+        .face {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            backface-visibility: visible;
+        }
+
+        .front {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.8), rgba(255, 107, 107, 0.4));
+            transform: translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        .back {
+            background: linear-gradient(135deg, rgba(78, 205, 196, 0.8), rgba(78, 205, 196, 0.4));
+            transform: rotateY(180deg) translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        .right {
+            background: linear-gradient(135deg, rgba(69, 183, 209, 0.8), rgba(69, 183, 209, 0.4));
+            transform: rotateY(90deg) translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        .left {
+            background: linear-gradient(135deg, rgba(150, 111, 214, 0.8), rgba(150, 111, 214, 0.4));
+            transform: rotateY(-90deg) translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        .top {
+            background: linear-gradient(135deg, rgba(247, 215, 148, 0.8), rgba(247, 215, 148, 0.4));
+            transform: rotateX(90deg) translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        .bottom {
+            background: linear-gradient(135deg, rgba(119, 221, 119, 0.8), rgba(119, 221, 119, 0.4));
+            transform: rotateX(-90deg) translateZ(100px);
+            box-shadow: inset 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        @keyframes rotate {
+            0% {
+                transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+            }
+            100% {
+                transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg);
+            }
+        }
+
+        .glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 4s infinite ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: float 15s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    <div class="glow"></div>
+    <div class="scene">
+        <div class="cube">
+            <div class="face front">FRONT</div>
+            <div class="face back">BACK</div>
+            <div class="face right">RIGHT</div>
+            <div class="face left">LEFT</div>
+            <div class="face top">TOP</div>
+            <div class="face bottom">BOTTOM</div>
+        </div>
+    </div>
+
+    <script>
+        // Create floating particles
+        const particlesContainer = document.getElementById('particles');
+        const particleCount = 50;
+
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 15 + 's';
+            particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+            particle.style.width = (2 + Math.random() * 4) + 'px';
+            particle.style.height = particle.style.width;
+            particle.style.opacity = 0.3 + Math.random() * 0.5;
+            particlesContainer.appendChild(particle);
+        }
+
+        // Interactive mouse tracking (optional enhancement)
+        const cube = document.querySelector('.cube');
+        let isHovering = false;
+        let mouseX = 0;
+        let mouseY = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth - 0.5) * 30;
+            mouseY = (e.clientY / window.innerHeight - 0.5) * 30;
+        });
+
+        document.addEventListener('mouseenter', () => isHovering = true);
+        document.addEventListener('mouseleave', () => isHovering = false);
+    </script>
+</body>
+</html>
