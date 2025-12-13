@@ -10,8 +10,11 @@ export default function Tekkers() {
     if (!containerRef.current || gameRef.current) return
 
     const container = containerRef.current
-    const width = window.innerWidth
-    const height = window.innerHeight
+    let width = window.innerWidth
+    let height = window.innerHeight
+
+    // Detect touch device
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
 
     // Dynamically load Three.js
     const script = document.createElement('script')
@@ -196,40 +199,97 @@ export default function Tekkers() {
         updateUI()
       }
 
-      // Mouse tracking - X from mouse move, Z from mouse wheel
-      let mouseX = 0
-      let targetZ = 0
+      // Input state - unified for both mouse and touch
+      let paddleTargetX = 0
+      let paddleTargetZ = 0
+
+      // Track touch start position for relative movement on mobile
+      let touchStartX = 0
+      let touchStartY = 0
+      let paddleStartX = 0
+      let paddleStartZ = 0
+      let isTouching = false
+
+      // Mouse controls - X from mouse move, Z from mouse wheel
       const handleMouseMove = (e: MouseEvent) => {
-        mouseX = ((e.clientX / width) - 0.5) * 20
+        if (isTouchDevice) return
+        paddleTargetX = ((e.clientX / window.innerWidth) - 0.5) * 20
       }
       window.addEventListener('mousemove', handleMouseMove)
 
-      // Mouse wheel for Z-axis (forward/backward)
+      // Mouse wheel for Z-axis (forward/backward) - desktop only
       const handleWheel = (e: WheelEvent) => {
+        if (isTouchDevice) return
         e.preventDefault()
-        // Scroll down = move forward (positive Z), scroll up = move back (negative Z)
-        targetZ += e.deltaY * 0.01
-        // Clamp target Z position
-        targetZ = Math.max(-6, Math.min(6, targetZ))
+        paddleTargetZ += e.deltaY * 0.01
+        paddleTargetZ = Math.max(-6, Math.min(6, paddleTargetZ))
       }
       window.addEventListener('wheel', handleWheel, { passive: false })
 
-      // Touch support - touch still uses Y position for Z-axis
+      // Touch controls - position maps directly to paddle position
+      // Touch X controls paddle X, touch Y controls paddle Z (depth)
       const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault()
-        mouseX = ((e.touches[0].clientX / width) - 0.5) * 20
-        targetZ = ((e.touches[0].clientY / height) - 0.5) * 12
-      }
-      window.addEventListener('touchmove', handleTouchMove, { passive: false })
+        if (e.touches.length === 1) {
+          // Map touch position directly to paddle position for intuitive control
+          // Normalize to screen dimensions and scale to paddle range
+          const touchX = e.touches[0].clientX
+          const touchY = e.touches[0].clientY
 
-      // Click to start/restart
+          // Direct mapping: touch position -> paddle position
+          // X: left edge of screen = -10, right edge = +10
+          paddleTargetX = ((touchX / window.innerWidth) - 0.5) * 20
+          // Z: top of screen = -6 (back), bottom = +6 (front)
+          paddleTargetZ = ((touchY / window.innerHeight) - 0.5) * 12
+
+          // Clamp to paddle bounds
+          paddleTargetX = Math.max(-10, Math.min(10, paddleTargetX))
+          paddleTargetZ = Math.max(-6, Math.min(6, paddleTargetZ))
+        }
+      }
+
+      // Track tap timing for distinguishing taps from drags
+      let tapStartTime = 0
+      let tapStartX = 0
+      let tapStartY = 0
+
+      const handleTouchStartCombined = (e: TouchEvent) => {
+        // Track for movement
+        if (e.touches.length === 1) {
+          isTouching = true
+          touchStartX = e.touches[0].clientX
+          touchStartY = e.touches[0].clientY
+          paddleStartX = paddleTargetX
+          paddleStartZ = paddleTargetZ
+          // Track for tap detection
+          tapStartTime = Date.now()
+          tapStartX = e.touches[0].clientX
+          tapStartY = e.touches[0].clientY
+        }
+      }
+
+      const handleTouchEndCombined = (e: TouchEvent) => {
+        isTouching = false
+        // Only trigger tap if it was quick and didn't move much
+        const tapDuration = Date.now() - tapStartTime
+        if (tapDuration < 300) {
+          if (!gameStarted || gameOver) {
+            resetCube()
+          }
+        }
+      }
+
+      window.addEventListener('touchstart', handleTouchStartCombined, { passive: true })
+      window.addEventListener('touchmove', handleTouchMove, { passive: false })
+      window.addEventListener('touchend', handleTouchEndCombined, { passive: true })
+
+      // Click to start/restart (desktop only)
       const handleClick = () => {
         if (!gameStarted || gameOver) {
           resetCube()
         }
       }
       window.addEventListener('click', handleClick)
-      window.addEventListener('touchstart', handleClick)
 
       // UI
       const ui = document.createElement('div')
@@ -247,29 +307,38 @@ export default function Tekkers() {
       container.appendChild(ui)
 
       const updateUI = () => {
+        const controlsText = isTouchDevice
+          ? 'Touch and drag to move paddle'
+          : 'Mouse: left/right | Scroll wheel: forward/back'
+        const startText = isTouchDevice ? 'Tap to Start' : 'Click to Start'
+        const retryText = isTouchDevice ? 'Tap to Retry' : 'Click to Retry'
+        const fontSize = isTouchDevice ? 'clamp(32px, 8vw, 48px)' : '48px'
+        const subFontSize = isTouchDevice ? 'clamp(14px, 4vw, 18px)' : '18px'
+        const scoreFontSize = isTouchDevice ? 'clamp(36px, 10vw, 64px)' : '64px'
+
         if (!gameStarted) {
           ui.innerHTML = `
-            <div style="font-size: 48px; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,136,0.5);">TEKKERS</div>
-            <div style="font-size: 18px; margin-top: 10px; opacity: 0.8;">3D Cube Juggling</div>
-            <div style="font-size: 24px; margin-top: 30px; animation: pulse 1.5s infinite;">Click to Start</div>
-            <div style="font-size: 14px; margin-top: 20px; opacity: 0.6;">Mouse: left/right | Scroll wheel: forward/back</div>
-            ${highScore > 0 ? `<div style="font-size: 16px; margin-top: 10px; color: #ffd700;">Best: ${highScore}</div>` : ''}
+            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,136,0.5);">TEKKERS</div>
+            <div style="font-size: ${subFontSize}; margin-top: 10px; opacity: 0.8;">3D Cube Juggling</div>
+            <div style="font-size: clamp(18px, 5vw, 24px); margin-top: 30px; animation: pulse 1.5s infinite;">${startText}</div>
+            <div style="font-size: clamp(12px, 3vw, 14px); margin-top: 20px; opacity: 0.6; padding: 0 20px;">${controlsText}</div>
+            ${highScore > 0 ? `<div style="font-size: clamp(14px, 3.5vw, 16px); margin-top: 10px; color: #ffd700;">Best: ${highScore}</div>` : ''}
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
         } else if (gameOver) {
           ui.innerHTML = `
-            <div style="font-size: 36px; color: #ff6b6b; font-weight: bold;">GAME OVER</div>
-            <div style="font-size: 64px; margin-top: 10px; font-weight: bold;">${score}</div>
-            <div style="font-size: 18px; opacity: 0.8;">bounces</div>
-            ${score >= highScore && score > 0 ? '<div style="font-size: 20px; color: #ffd700; margin-top: 10px;">NEW HIGH SCORE!</div>' : ''}
-            <div style="font-size: 14px; margin-top: 10px; opacity: 0.6;">Best: ${highScore}</div>
-            <div style="font-size: 20px; margin-top: 20px; animation: pulse 1.5s infinite;">Click to Retry</div>
+            <div style="font-size: clamp(28px, 7vw, 36px); color: #ff6b6b; font-weight: bold;">GAME OVER</div>
+            <div style="font-size: ${scoreFontSize}; margin-top: 10px; font-weight: bold;">${score}</div>
+            <div style="font-size: ${subFontSize}; opacity: 0.8;">bounces</div>
+            ${score >= highScore && score > 0 ? `<div style="font-size: clamp(16px, 4vw, 20px); color: #ffd700; margin-top: 10px;">NEW HIGH SCORE!</div>` : ''}
+            <div style="font-size: clamp(12px, 3vw, 14px); margin-top: 10px; opacity: 0.6;">Best: ${highScore}</div>
+            <div style="font-size: clamp(16px, 4vw, 20px); margin-top: 20px; animation: pulse 1.5s infinite;">${retryText}</div>
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
         } else {
           ui.innerHTML = `
-            <div style="font-size: 48px; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.3);">${score}</div>
-            <div style="font-size: 14px; opacity: 0.6;">Best: ${highScore}</div>
+            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.3);">${score}</div>
+            <div style="font-size: clamp(12px, 3vw, 14px); opacity: 0.6;">Best: ${highScore}</div>
           `
         }
       }
@@ -309,8 +378,8 @@ export default function Tekkers() {
         lastTime = currentTime
 
         // Smooth paddle movement on 2D horizontal plane (X and Z)
-        paddle.position.x += (mouseX - paddle.position.x) * 0.15
-        paddle.position.z += (targetZ - paddle.position.z) * 0.1
+        paddle.position.x += (paddleTargetX - paddle.position.x) * 0.15
+        paddle.position.z += (paddleTargetZ - paddle.position.z) * 0.15
 
         // Clamp paddle position
         paddle.position.x = Math.max(-10, Math.min(10, paddle.position.x))
@@ -420,13 +489,17 @@ export default function Tekkers() {
 
       // Handle resize
       const handleResize = () => {
-        const w = window.innerWidth
-        const h = window.innerHeight
-        camera.aspect = w / h
+        width = window.innerWidth
+        height = window.innerHeight
+        camera.aspect = width / height
         camera.updateProjectionMatrix()
-        renderer.setSize(w, h)
+        renderer.setSize(width, height)
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       }
       window.addEventListener('resize', handleResize)
+
+      // Set initial pixel ratio for mobile
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
       // Cleanup function
       gameRef.current = {
@@ -434,9 +507,10 @@ export default function Tekkers() {
           cancelAnimationFrame(animationId)
           window.removeEventListener('mousemove', handleMouseMove)
           window.removeEventListener('wheel', handleWheel)
+          window.removeEventListener('touchstart', handleTouchStartCombined)
           window.removeEventListener('touchmove', handleTouchMove)
+          window.removeEventListener('touchend', handleTouchEndCombined)
           window.removeEventListener('click', handleClick)
-          window.removeEventListener('touchstart', handleClick)
           window.removeEventListener('resize', handleResize)
           renderer.dispose()
           if (container.contains(renderer.domElement)) {
@@ -465,8 +539,12 @@ export default function Tekkers() {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        cursor: 'none'
-      }}
+        cursor: 'none',
+        touchAction: 'none', // Prevent browser touch behaviors
+        userSelect: 'none',  // Prevent text selection
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none'
+      } as React.CSSProperties}
     />
   )
 }
