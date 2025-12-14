@@ -30,7 +30,7 @@ export default function Tekkers() {
       scene.background = new THREE.Color(0x1a1a2e)
 
       const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000)
-      camera.position.set(0, 12, 28)
+      camera.position.set(0, 18, 38)
       camera.lookAt(0, 0, 0)
 
       const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -226,21 +226,32 @@ export default function Tekkers() {
       }
       window.addEventListener('wheel', handleWheel, { passive: false })
 
-      // Touch controls - position maps directly to paddle position
-      // Touch X controls paddle X, touch Y controls paddle Z (depth)
+      // Touch controls - relative movement with high sensitivity
+      // 20% of screen movement = full paddle range
+      // Aspect ratio corrected so movement feels equal in all directions
       const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault()
-        if (e.touches.length === 1) {
-          // Map touch position directly to paddle position for intuitive control
-          // Normalize to screen dimensions and scale to paddle range
+        if (e.touches.length === 1 && isTouching) {
           const touchX = e.touches[0].clientX
           const touchY = e.touches[0].clientY
 
-          // Direct mapping: touch position -> paddle position
-          // X: left edge of screen = -10, right edge = +10
-          paddleTargetX = ((touchX / window.innerWidth) - 0.5) * 20
-          // Z: top of screen = -6 (back), bottom = +6 (front)
-          paddleTargetZ = ((touchY / window.innerHeight) - 0.5) * 12
+          // Calculate delta from touch start position
+          const deltaX = touchX - touchStartX
+          const deltaY = touchY - touchStartY
+
+          // High sensitivity: 20% of screen = full range
+          // Paddle X range is 20 units (-10 to 10), Paddle Z range is 12 units (-6 to 6)
+          const screenSize = Math.min(window.innerWidth, window.innerHeight)
+          const sensitivity = 5 // 20% of screen = full range (1/0.2 = 5)
+
+          // Use the smaller screen dimension as reference for both axes
+          // This ensures equal physical finger movement = equal paddle movement
+          const normalizedDeltaX = (deltaX / screenSize) * sensitivity
+          const normalizedDeltaY = (deltaY / screenSize) * sensitivity
+
+          // Apply to paddle position (scaled to paddle range)
+          paddleTargetX = paddleStartX + normalizedDeltaX * 20 // Full X range is 20 units
+          paddleTargetZ = paddleStartZ + normalizedDeltaY * 12 // Full Z range is 12 units
 
           // Clamp to paddle bounds
           paddleTargetX = Math.max(-10, Math.min(10, paddleTargetX))
