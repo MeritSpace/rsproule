@@ -181,7 +181,7 @@ export default function Tekkers() {
 
       // Physics
       const gravity = -20
-      const bounceFactor = 0.5
+      const bounceFactor = 0.65
       const spinFactor = 3
 
       let velocity = { x: 0, y: 0, z: 0 }
