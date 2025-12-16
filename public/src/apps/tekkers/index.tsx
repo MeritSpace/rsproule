@@ -27,7 +27,8 @@ export default function Tekkers() {
 
       // Scene setup
       const scene = new THREE.Scene()
-      scene.background = new THREE.Color(0x1a1a2e)
+      scene.background = new THREE.Color(0x030311)
+      scene.fog = new THREE.FogExp2(0x030311, 0.015)
 
       const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000)
       camera.position.set(0, 18, 38)
@@ -39,20 +40,195 @@ export default function Tekkers() {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
       container.appendChild(renderer.domElement)
 
+      // === FUTURISTIC BACKGROUND ELEMENTS ===
+
+      // Starfield with varying sizes and colors
+      const starGeometry = new THREE.BufferGeometry()
+      const starCount = 2000
+      const starPositions = new Float32Array(starCount * 3)
+      const starColors = new Float32Array(starCount * 3)
+      const starSizes = new Float32Array(starCount)
+
+      for (let i = 0; i < starCount; i++) {
+        const i3 = i * 3
+        // Distribute stars in a sphere around the scene
+        const radius = 80 + Math.random() * 120
+        const theta = Math.random() * Math.PI * 2
+        const phi = Math.acos(2 * Math.random() - 1)
+        starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta)
+        starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
+        starPositions[i3 + 2] = radius * Math.cos(phi)
+
+        // Cyan/magenta/white color variation
+        const colorChoice = Math.random()
+        if (colorChoice < 0.3) {
+          starColors[i3] = 0; starColors[i3 + 1] = 1; starColors[i3 + 2] = 1 // cyan
+        } else if (colorChoice < 0.5) {
+          starColors[i3] = 1; starColors[i3 + 1] = 0; starColors[i3 + 2] = 0.8 // magenta
+        } else {
+          starColors[i3] = 1; starColors[i3 + 1] = 1; starColors[i3 + 2] = 1 // white
+        }
+        starSizes[i] = Math.random() * 2 + 0.5
+      }
+
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
+      starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3))
+      starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1))
+
+      const starMaterial = new THREE.PointsMaterial({
+        size: 0.5,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8,
+        sizeAttenuation: true
+      })
+      const stars = new THREE.Points(starGeometry, starMaterial)
+      scene.add(stars)
+
+      // Animated nebula clouds (large transparent spheres)
+      const nebulae: THREE.Mesh[] = []
+      const nebulaColors = [0x00ffff, 0xff00ff, 0x0066ff, 0x6600ff]
+      for (let i = 0; i < 6; i++) {
+        const nebulaGeom = new THREE.SphereGeometry(15 + Math.random() * 20, 16, 16)
+        const nebulaMat = new THREE.MeshBasicMaterial({
+          color: nebulaColors[i % nebulaColors.length],
+          transparent: true,
+          opacity: 0.03 + Math.random() * 0.02,
+          side: THREE.BackSide
+        })
+        const nebula = new THREE.Mesh(nebulaGeom, nebulaMat)
+        nebula.position.set(
+          (Math.random() - 0.5) * 100,
+          (Math.random() - 0.5) * 60 + 20,
+          -40 - Math.random() * 40
+        )
+        nebula.userData = {
+          rotSpeed: (Math.random() - 0.5) * 0.001,
+          pulseSpeed: 0.5 + Math.random() * 0.5,
+          baseOpacity: nebulaMat.opacity
+        }
+        scene.add(nebula)
+        nebulae.push(nebula)
+      }
+
+      // Glowing ring structures in background
+      const rings: THREE.Mesh[] = []
+      for (let i = 0; i < 3; i++) {
+        const ringGeom = new THREE.TorusGeometry(20 + i * 15, 0.3, 8, 64)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: i === 0 ? 0x00ffff : i === 1 ? 0xff00ff : 0x00ff88,
+          transparent: true,
+          opacity: 0.15
+        })
+        const ring = new THREE.Mesh(ringGeom, ringMat)
+        ring.position.set(0, 10, -60 - i * 10)
+        ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3
+        ring.userData = { rotSpeed: 0.1 + i * 0.05 }
+        scene.add(ring)
+        rings.push(ring)
+      }
+
+      // Floating holographic hexagons
+      const hexagons: THREE.Group[] = []
+      for (let i = 0; i < 12; i++) {
+        const hexShape = new THREE.Shape()
+        const hexSize = 1.5 + Math.random() * 2
+        for (let j = 0; j < 6; j++) {
+          const angle = (j / 6) * Math.PI * 2
+          const x = Math.cos(angle) * hexSize
+          const y = Math.sin(angle) * hexSize
+          if (j === 0) hexShape.moveTo(x, y)
+          else hexShape.lineTo(x, y)
+        }
+        hexShape.closePath()
+
+        const hexGeom = new THREE.ShapeGeometry(hexShape)
+        const hexMat = new THREE.MeshBasicMaterial({
+          color: Math.random() > 0.5 ? 0x00ffff : 0xff00ff,
+          transparent: true,
+          opacity: 0.1 + Math.random() * 0.1,
+          side: THREE.DoubleSide
+        })
+        const hexMesh = new THREE.Mesh(hexGeom, hexMat)
+
+        // Add glowing border
+        const hexPoints = []
+        for (let j = 0; j <= 6; j++) {
+          const angle = (j / 6) * Math.PI * 2
+          hexPoints.push(new THREE.Vector3(Math.cos(angle) * hexSize, Math.sin(angle) * hexSize, 0))
+        }
+        const hexLineGeom = new THREE.BufferGeometry().setFromPoints(hexPoints)
+        const hexLineMat = new THREE.LineBasicMaterial({
+          color: hexMat.color,
+          transparent: true,
+          opacity: 0.4
+        })
+        const hexLine = new THREE.Line(hexLineGeom, hexLineMat)
+
+        const hexGroup = new THREE.Group()
+        hexGroup.add(hexMesh)
+        hexGroup.add(hexLine)
+        hexGroup.position.set(
+          (Math.random() - 0.5) * 80,
+          (Math.random() - 0.5) * 40 + 10,
+          -30 - Math.random() * 30
+        )
+        hexGroup.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI)
+        hexGroup.userData = {
+          floatSpeed: 0.2 + Math.random() * 0.3,
+          rotSpeed: (Math.random() - 0.5) * 0.5,
+          baseY: hexGroup.position.y
+        }
+        scene.add(hexGroup)
+        hexagons.push(hexGroup)
+      }
+
+      // Vertical light beams
+      const beams: THREE.Mesh[] = []
+      for (let i = 0; i < 4; i++) {
+        const beamGeom = new THREE.CylinderGeometry(0.1, 0.3, 80, 8, 1, true)
+        const beamMat = new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0x00ffff : 0xff00ff,
+          transparent: true,
+          opacity: 0.08,
+          side: THREE.DoubleSide
+        })
+        const beam = new THREE.Mesh(beamGeom, beamMat)
+        beam.position.set(
+          (i - 1.5) * 25,
+          20,
+          -50
+        )
+        beam.userData = { pulseSpeed: 0.5 + Math.random() * 0.5 }
+        scene.add(beam)
+        beams.push(beam)
+      }
+
       // Lighting
-      const ambientLight = new THREE.AmbientLight(0x404040, 0.5)
+      const ambientLight = new THREE.AmbientLight(0x404060, 0.4)
       scene.add(ambientLight)
 
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
       directionalLight.position.set(10, 20, 10)
       directionalLight.castShadow = true
       directionalLight.shadow.mapSize.width = 2048
       directionalLight.shadow.mapSize.height = 2048
       scene.add(directionalLight)
 
-      const pointLight = new THREE.PointLight(0x00ffff, 0.5, 50)
+      // Cyan point light (main)
+      const pointLight = new THREE.PointLight(0x00ffff, 0.6, 50)
       pointLight.position.set(0, 10, 0)
       scene.add(pointLight)
+
+      // Magenta accent light
+      const accentLight = new THREE.PointLight(0xff00ff, 0.3, 40)
+      accentLight.position.set(-10, 5, 10)
+      scene.add(accentLight)
+
+      // Warm accent from the other side
+      const warmLight = new THREE.PointLight(0xff6600, 0.2, 30)
+      warmLight.position.set(10, 0, -5)
+      scene.add(warmLight)
 
       // Paddle - 2D surface that moves on XZ plane
       const paddleGeometry = new THREE.BoxGeometry(4, 0.3, 4)
@@ -86,11 +262,14 @@ export default function Tekkers() {
       const cubeEdges = new THREE.LineSegments(edgesGeometry, edgesMaterial)
       cube.add(cubeEdges)
 
-      // Floor (for visual reference, cube falls through)
+      // Floor (futuristic glowing grid)
       const floorGeometry = new THREE.PlaneGeometry(30, 30)
       const floorMaterial = new THREE.MeshPhongMaterial({
-        color: 0x16213e,
-        side: THREE.DoubleSide
+        color: 0x050520,
+        emissive: 0x000510,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9
       })
       const floor = new THREE.Mesh(floorGeometry, floorMaterial)
       floor.rotation.x = -Math.PI / 2
@@ -98,22 +277,31 @@ export default function Tekkers() {
       floor.receiveShadow = true
       scene.add(floor)
 
-      // Grid helper
-      const gridHelper = new THREE.GridHelper(30, 30, 0x444444, 0x222222)
+      // Neon grid lines
+      const gridHelper = new THREE.GridHelper(30, 30, 0x00ffff, 0x003344)
       gridHelper.position.y = -5.99
+      ;(gridHelper.material as THREE.Material).transparent = true
+      ;(gridHelper.material as THREE.Material).opacity = 0.4
       scene.add(gridHelper)
 
-      // Glass bounding box
+      // Secondary finer grid for depth
+      const fineGrid = new THREE.GridHelper(30, 60, 0xff00ff, 0x110022)
+      fineGrid.position.y = -5.98
+      ;(fineGrid.material as THREE.Material).transparent = true
+      ;(fineGrid.material as THREE.Material).opacity = 0.15
+      scene.add(fineGrid)
+
+      // Glass bounding box - futuristic holographic containment
       const boxWidth = 24  // -12 to 12
       const boxDepth = 16  // -8 to 8
       const boxHeight = 20 // floor to ceiling
       const boxBottom = -6
       const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x88ccff,
+        color: 0x00ffff,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.08,
         roughness: 0.05,
-        metalness: 0.1,
+        metalness: 0.2,
         reflectivity: 0.9,
         clearcoat: 1.0,
         clearcoatRoughness: 0.1,
@@ -166,12 +354,44 @@ export default function Tekkers() {
       ceiling.rotation.x = Math.PI / 2
       scene.add(ceiling)
 
-      // Glass box edges for visibility
-      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.5 })
+      // Glass box edges - neon glow effect
+      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 })
       const boxEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth))
       const boxWireframe = new THREE.LineSegments(boxEdges, edgeMaterial)
       boxWireframe.position.set(0, boxBottom + boxHeight / 2, 0)
       scene.add(boxWireframe)
+
+      // Add corner accents for sci-fi look
+      const cornerSize = 1.5
+      const cornerMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.8 })
+      const corners = [
+        [-boxWidth/2, boxBottom, -boxDepth/2],
+        [boxWidth/2, boxBottom, -boxDepth/2],
+        [-boxWidth/2, boxBottom, boxDepth/2],
+        [boxWidth/2, boxBottom, boxDepth/2],
+        [-boxWidth/2, boxBottom + boxHeight, -boxDepth/2],
+        [boxWidth/2, boxBottom + boxHeight, -boxDepth/2],
+        [-boxWidth/2, boxBottom + boxHeight, boxDepth/2],
+        [boxWidth/2, boxBottom + boxHeight, boxDepth/2]
+      ]
+      corners.forEach(([cx, cy, cz]) => {
+        const dx = cx > 0 ? -1 : 1
+        const dy = cy > 0 ? -1 : 1
+        const dz = cz > 0 ? -1 : 1
+        const points = [
+          new THREE.Vector3(cx + dx * cornerSize, cy, cz),
+          new THREE.Vector3(cx, cy, cz),
+          new THREE.Vector3(cx, cy + dy * cornerSize, cz)
+        ]
+        const points2 = [
+          new THREE.Vector3(cx, cy, cz),
+          new THREE.Vector3(cx, cy, cz + dz * cornerSize)
+        ]
+        const geom1 = new THREE.BufferGeometry().setFromPoints(points)
+        const geom2 = new THREE.BufferGeometry().setFromPoints(points2)
+        scene.add(new THREE.Line(geom1, cornerMat))
+        scene.add(new THREE.Line(geom2, cornerMat))
+      })
 
       // Game state
       let score = 0
@@ -337,27 +557,27 @@ export default function Tekkers() {
 
         if (!gameStarted) {
           ui.innerHTML = `
-            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,136,0.5);">TEKKERS</div>
-            <div style="font-size: ${subFontSize}; margin-top: 10px; opacity: 0.8;">3D Cube Juggling</div>
-            <div style="font-size: clamp(18px, 5vw, 24px); margin-top: 30px; animation: pulse 1.5s infinite;">${startText}</div>
+            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 30px rgba(0,255,255,0.8), 0 0 60px rgba(255,0,255,0.4);">TEKKERS</div>
+            <div style="font-size: ${subFontSize}; margin-top: 10px; opacity: 0.8; color: #00ffff;">3D Cube Juggling</div>
+            <div style="font-size: clamp(18px, 5vw, 24px); margin-top: 30px; animation: pulse 1.5s infinite; color: #ff00ff;">${startText}</div>
             <div style="font-size: clamp(12px, 3vw, 14px); margin-top: 20px; opacity: 0.6; padding: 0 20px;">${controlsText}</div>
             ${highScore > 0 ? `<div style="font-size: clamp(14px, 3.5vw, 16px); margin-top: 10px; color: #ffd700;">Best: ${highScore}</div>` : ''}
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
         } else if (gameOver) {
           ui.innerHTML = `
-            <div style="font-size: clamp(28px, 7vw, 36px); color: #ff6b6b; font-weight: bold;">GAME OVER</div>
-            <div style="font-size: ${scoreFontSize}; margin-top: 10px; font-weight: bold;">${score}</div>
-            <div style="font-size: ${subFontSize}; opacity: 0.8;">bounces</div>
-            ${score >= highScore && score > 0 ? `<div style="font-size: clamp(16px, 4vw, 20px); color: #ffd700; margin-top: 10px;">NEW HIGH SCORE!</div>` : ''}
+            <div style="font-size: clamp(28px, 7vw, 36px); color: #ff6b6b; font-weight: bold; text-shadow: 0 0 20px rgba(255,100,100,0.6);">GAME OVER</div>
+            <div style="font-size: ${scoreFontSize}; margin-top: 10px; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,255,0.5);">${score}</div>
+            <div style="font-size: ${subFontSize}; opacity: 0.8; color: #00ffff;">bounces</div>
+            ${score >= highScore && score > 0 ? `<div style="font-size: clamp(16px, 4vw, 20px); color: #ffd700; margin-top: 10px; text-shadow: 0 0 15px rgba(255,215,0,0.6);">NEW HIGH SCORE!</div>` : ''}
             <div style="font-size: clamp(12px, 3vw, 14px); margin-top: 10px; opacity: 0.6;">Best: ${highScore}</div>
-            <div style="font-size: clamp(16px, 4vw, 20px); margin-top: 20px; animation: pulse 1.5s infinite;">${retryText}</div>
+            <div style="font-size: clamp(16px, 4vw, 20px); margin-top: 20px; animation: pulse 1.5s infinite; color: #ff00ff;">${retryText}</div>
             <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }</style>
           `
         } else {
           ui.innerHTML = `
-            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.3);">${score}</div>
-            <div style="font-size: clamp(12px, 3vw, 14px); opacity: 0.6;">Best: ${highScore}</div>
+            <div style="font-size: ${fontSize}; font-weight: bold; text-shadow: 0 0 20px rgba(0,255,255,0.6), 0 0 40px rgba(255,0,255,0.3);">${score}</div>
+            <div style="font-size: clamp(12px, 3vw, 14px); opacity: 0.6; color: #00ffff;">Best: ${highScore}</div>
           `
         }
       }
@@ -497,6 +717,39 @@ export default function Tekkers() {
             particles.splice(i, 1)
           }
         }
+
+        // === ANIMATE BACKGROUND ELEMENTS ===
+
+        // Rotate starfield slowly
+        stars.rotation.y += 0.0001
+        stars.rotation.x += 0.00005
+
+        // Animate nebulae
+        nebulae.forEach((nebula) => {
+          nebula.rotation.y += nebula.userData.rotSpeed
+          const mat = nebula.material as THREE.MeshBasicMaterial
+          mat.opacity = nebula.userData.baseOpacity * (0.8 + 0.2 * Math.sin(currentTime * 0.001 * nebula.userData.pulseSpeed))
+        })
+
+        // Rotate rings
+        rings.forEach((ring) => {
+          ring.rotation.z += ring.userData.rotSpeed * deltaTime
+        })
+
+        // Animate hexagons (float and rotate)
+        hexagons.forEach((hex) => {
+          hex.position.y = hex.userData.baseY + Math.sin(currentTime * 0.001 * hex.userData.floatSpeed) * 2
+          hex.rotation.z += hex.userData.rotSpeed * deltaTime
+        })
+
+        // Pulse light beams
+        beams.forEach((beam) => {
+          const mat = beam.material as THREE.MeshBasicMaterial
+          mat.opacity = 0.05 + 0.05 * Math.sin(currentTime * 0.002 * beam.userData.pulseSpeed)
+        })
+
+        // Pulse box wireframe
+        edgeMaterial.opacity = 0.5 + 0.2 * Math.sin(currentTime * 0.002)
 
         // Gentle camera sway
         camera.position.x = Math.sin(currentTime * 0.0005) * 0.5
